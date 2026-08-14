@@ -145,46 +145,68 @@ Son las únicas que el modelo distingue, más la pinza, que se mide por geometr�
 | **PULGAR ABAJO** | Puño cerrado con el pulgar apuntando hacia abajo |
 | **UVE** | Índice y corazón extendidos en uve; los demás recogidos |
 | **CUERNOS** | Pulgar, índice y meñique extendidos; corazón y anular recogidos |
-| **PINZA** | Pulgar e índice extendidos, los demás recogidos |
+| **PINZA** | Juntar las yemas del pulgar y el índice, con el índice estirado |
 
 «Cuernos» es el signo del rock con el pulgar también fuera. Es el gesto que
 MediaPipe llama `ILoveYou`, porque en la lengua de signos americana significa
 eso; aquí se nombra por la forma de la mano, que es lo único que hace falta
 saber para hacerlo.
 
-### La regla que evita los disparos indeseados
+### La pinza es el gatillo
 
-**Ningún gesto tiene a la vez un disparo por permanencia y barridos.** Al
-encadenar barridos la mano se queda quieta entre intento e intento, y un
-temporizador de permanencia sobre esa misma pose se cumpliría antes de que el
-barrido llegue a completarse: acabarías pausando el vídeo en lugar de cambiar de
-pestaña. La configuración se valida al arrancar y el programa se niega a
-ejecutarse si se reintroduce esa combinación.
+**No hay barridos.** Un barrido no tiene enganche: se dispara en cuanto la mano
+supera un umbral de velocidad con la pose puesta. Eso significa que levantar el
+brazo para entrar en el encuadre cuenta como un barrido hacia arriba y bajarlo
+para descansar cuenta como uno hacia abajo, que es exactamente por qué se abrían
+pestañas solas. Ajustar los umbrales no lo arregla: lo que faltaba era un
+momento explícito de «ahora sí».
 
-Por eso cada pose hace una sola clase de cosa: el **puño** y la **uve** solo
-barren, el **pulgar** solo se mantiene, y todo lo demás vive en la rueda.
+Todo lo direccional pasa por la pinza, con tres momentos separados como al usar
+un botón:
+
+1. **Juntar** las yemas del pulgar y el índice engancha.
+2. **Mover** arrastra, y cada tramo recorrido emite un paso — una pestaña, una
+   muesca de desplazamiento— con un indicador en pantalla de cuántos llevas.
+3. **Separar** los dedos suelta.
+
+El eje se fija con el primer tramo y no cambia hasta soltar, así que un arrastre
+horizontal con algo de deriva vertical no se pone a desplazar la página a mitad
+de camino. Y como los pasos son reversibles, volver hacia atrás deshace: si te
+pasas de pestañas, retrocedes sin soltar.
+
+Mientras no enganches, mover la mano no hace absolutamente nada.
+
+Se mantiene además la regla de que **ningún gesto combina permanencia con
+direcciones**, y la configuración se valida al arrancar para que no pueda
+reintroducirse.
 
 ### Modo control
 
 | Gesto | Acción |
 |---|---|
-| **PULGAR ARRIBA** mantenido | Subir volumen (repite mientras se mantenga) |
-| **PULGAR ABAJO** mantenido | Bajar volumen (repite) |
-| **PINZA**, separando los dedos | **Volumen analógico**: la separación fija el nivel |
-| **UVE** + barrer derecha / izquierda | Pestaña siguiente / anterior (`Ctrl+Tab`) |
-| **UVE** + barrer arriba | Nueva pestaña (`Ctrl+T`) |
-| **UVE** + barrer abajo | Cerrar pestaña (`Ctrl+W`) |
-| **PUÑO** + barrer derecha / izquierda | Escritorio virtual siguiente / anterior |
-| **PUÑO** + barrer arriba | Vista de tareas (`Win+Tab`) |
-| **PUÑO** + barrer abajo | Mostrar escritorio (`Win+D`) |
+| **PINZA** + arrastrar ←/→ | Cambiar de pestaña, una por tramo |
+| **PINZA** + arrastrar ↑/↓ | Desplazar la página |
+| **PULGAR ARRIBA / ABAJO** mantenido | Subir / bajar volumen |
+| **UVE** 0,7 s | Reproducir o pausar el vídeo |
+| **PUÑO** 0,4 s | Abrir el **conmutador de ventanas** |
+| **ÍNDICE** 0,6 s | Entrar en modo cursor |
 | **CUERNOS** 0,5 s | Abrir la **rueda de comandos** |
-| **ÍNDICE** 1 s quieto | Entrar en modo ratón |
 
-Barrer significa mover la mano con decisión manteniendo la pose, no girarla.
-La barra **MOV** del panel superior izquierdo indica la velocidad detectada. No
-hace falta que la pose sobreviva al final del recorrido: el barrido se
-identifica por la pose que dominó el trayecto, porque al mover el brazo la
-muñeca gira y el clasificador suele soltar la pose justo al terminar.
+### Conmutador de ventanas
+
+Cerrar el puño **agarra** el escritorio: el programa enumera las ventanas
+abiertas y dibuja él mismo la rejilla en el visor, en lugar de usar el Alt+Tab
+del sistema, que solo deja recorrer una fila con las flechas. Así puedes
+**señalar directamente** la ventana que quieres, en dos dimensiones.
+
+- **Señalar** con el índice marca una ventana.
+- **Abrir la mano** salta a la marcada.
+- **Llevar el dedo a un borde** y abrir la mano acopla esa ventana a la mitad
+  izquierda o derecha, o la maximiza si el borde es el de arriba.
+- **Bajar la mano** cancela sin tocar nada.
+
+Viene preseleccionada la ventana anterior, así que abrir la mano sin señalar
+hace lo mismo que un Alt+Tab suelto.
 
 ### Modo ratón
 
@@ -192,13 +214,18 @@ muñeca gira y el clasificador suele soltar la pose justo al terminar.
 |---|---|
 | **ÍNDICE** extendido | Mover el cursor |
 | **PUÑO** cerrado | Clic izquierdo mantenido: agarrar y arrastrar |
-| **PINZA**, juntando los dedos | Clic derecho |
-| **UVE**, moviendo en vertical | Desplazamiento (scroll) |
+| **PINZA** juntada y soltada sin mover | Clic derecho |
+| **PINZA** + arrastrar ↑/↓ | Desplazar |
 | **CUERNOS** 0,5 s | Abrir la rueda (contiene «volver a control») |
 
-Cerrar el puño agarra **donde está el cursor**, no donde apunte la palma: al
-cambiar el punto de referencia del índice al centro de la mano se congela la
-diferencia, de modo que el cursor no salta justo en el instante de agarrar.
+Pinza quieta es un clic y pinza que se mueve es un arrastre, la misma distinción
+que hace un ratón entre pulsar y arrastrar.
+
+El puño significa cosas distintas en cada modo a propósito: fuera agarras una
+ventana, dentro agarras lo que haya bajo el cursor. Y cerrar el puño agarra
+**donde está el cursor**, no donde apunte la palma: al cambiar el punto de
+referencia del índice al centro de la mano se congela la diferencia, de modo que
+el cursor no salta justo en el instante de agarrar.
 
 ### La rueda de comandos
 
@@ -212,9 +239,11 @@ Es la respuesta a que siete poses por cuatro direcciones se quedan cortas. En
 lugar de inventar más gestos que memorizar, una sola pose abre un menú con las
 opciones **escritas**, así que se puede usar sin conocerlas de antemano.
 
-Trae reproducción y pausa, pista siguiente, silenciar, recorte de pantalla,
-las aplicaciones y el cambio de modo. Todo ello se configura en la sección
-`wheel` de `config.yaml` y admite hasta ocho opciones cómodamente.
+Es también donde viven las acciones que **no deben poder dispararse sin querer**:
+abrir y cerrar pestañas están aquí precisamente porque son las que más molestan
+cuando saltan solas. Trae además silenciar, recorte de pantalla, las
+aplicaciones y el cambio de modo. Todo se configura en la sección `wheel` de
+`config.yaml` y admite hasta ocho opciones cómodamente.
 
 ### Siempre disponible
 
@@ -276,13 +305,16 @@ src/gesture_control/
   landmarks.py           geometría de la mano normalizada por su tamaño
   poses.py               nombres, descripciones y esquemas de los siete gestos
   engine.py              máquina de estados de gestos → eventos
+  pinchdrag.py           el gatillo: enganchar, arrastrar por pasos y soltar
   wheel.py               menú radial: apuntado y confirmación por permanencia
+  switcher.py            conmutador de ventanas: señalar, soltar y acoplar
   actions.py             registro de acciones ejecutables
   mouse.py               cursor con suavizado adaptativo, clic, arrastre, scroll
   hud.py                 superposición visual
   app.py                 bucle principal
   win/input.py           SendInput por ctypes (teclas, cursor, botones, rueda)
   win/volume.py          volumen maestro por Core Audio
+  win/windows.py         enumerar, activar y acoplar ventanas
   win/apps.py            lanzador de aplicaciones
 tests/test_engine.py     pruebas del motor con manos sintéticas
 ```
@@ -358,17 +390,23 @@ mismo gesto se reportan con un mensaje concreto en lugar de fallar en marcha.
 ```powershell
 Set-Location \\wsl.localhost\Ubuntu\home\<usuario>\gesture_recognition
 C:\venvs\gesture\Scripts\python.exe tests\test_engine.py
+C:\venvs\gesture\Scripts\python.exe tests\test_pinchdrag.py
+C:\venvs\gesture\Scripts\python.exe tests\test_switcher.py
 C:\venvs\gesture\Scripts\python.exe tests\test_wheel.py
 C:\venvs\gesture\Scripts\python.exe tests\test_config.py
 ```
 
-Son 41 pruebas con manos sintéticas, que es la única forma de ejercitar esto sin
-cámara. Cubren el motor (estabilidad, enfriamientos, permanencia, repetición,
-barridos en ambos sentidos, la puerta de movimiento, el aislamiento entre modos
-y la prioridad del deslizador), la rueda (correspondencia entre ángulo y sector,
-zona muerta, cancelación, corrección de la relación de aspecto) y la validación
-de la configuración, incluida la regla que prohíbe mezclar permanencia y
-barridos sobre un mismo gesto.
+Son 67 pruebas con manos sintéticas, que es la única forma de ejercitar esto sin
+cámara. `tests/synthetic.py` fabrica los 21 landmarks de una mano en la pose que
+haga falta; importa que los dedos recogidos se doblen de verdad y no sean solo
+cortos, porque la detección mide rectitud.
+
+Cubren el motor (estabilidad, enfriamientos, permanencia, repetición, la puerta
+de movimiento, el aislamiento entre modos), el gatillo de pinza (que mover la
+mano sin enganchar no dispara nada, el bloqueo de eje, la reversibilidad de los
+pasos, la histéresis y la distinción entre toque y arrastre), el conmutador
+(correspondencia entre dónde señalas y qué ventana se marca, bandas de acoplado,
+confirmación y cancelación), la rueda y la validación de la configuración.
 
 ---
 
@@ -400,10 +438,14 @@ salida actual», así que al cambiar de dispositivo la que ya se tenía sigue
 gobernando los altavoces anteriores. El programa comprueba el dispositivo
 predeterminado una vez y media por segundo y se reengancha solo.
 
-**Los barridos no se detectan.** Hay que mover con decisión: por defecto se pide
-recorrer 1,2 anchos de mano a más de 3 anchos por segundo. Baja
-`engine.swipe.min_distance` y `min_speed` si te resulta exigente. La barra de
-velocidad del HUD muestra cuánto te falta.
+**La pinza no engancha.** Hay que juntar de verdad las yemas del pulgar y el
+índice, con el índice estirado: en un puño las yemas también quedan cerca y por
+eso se exige el dedo extendido. Si te cuesta, sube `pinch_drag.engage` (por
+defecto 0,42). Cuando engancha aparece un rótulo en la parte superior.
+
+**Los pasos de la pinza van demasiado rápido o demasiado lentos.** Cada paso
+equivale a recorrer `pinch_drag.step` anchos de mano: 0,55 para las pestañas y
+0,16 para el desplazamiento. Subir el valor exige más recorrido por paso.
 
 **El cursor tiembla.** Sube `mouse.min_smoothing` o agranda `active_region`.
 

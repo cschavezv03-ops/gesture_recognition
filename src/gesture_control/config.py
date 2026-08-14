@@ -49,6 +49,8 @@ class Config:
         for group, items in (data.get("bindings") or {}).items():
             self.bindings[group] = [Binding.from_dict(item) for item in (items or [])]
 
+        self.pinch_drag = data.get("pinch_drag", {})
+        self.switcher = data.get("switcher", {})
         self.wheel = data.get("wheel", {})
         self.wheel_items: dict[str, list[WheelItem]] = {
             mode: [WheelItem.from_dict(item) for item in (items or [])]
@@ -103,6 +105,23 @@ class Config:
                 errors += self._check_action(f"wheel.items.{mode} → {item.label}",
                                              item.action, item.args, modes)
 
+        for mode, axes in (self.pinch_drag.get("modes") or {}).items():
+            if mode not in modes:
+                errors.append(f"pinch_drag.modes.{mode}: no existe ese modo")
+            for axis, entry in (axes or {}).items():
+                if axis == "tap":
+                    errors += self._check_action(
+                        f"pinch_drag.modes.{mode}.tap",
+                        entry.get("action", ""), entry.get("args", {}), modes)
+                    continue
+                senses = ("left", "right") if axis == "horizontal" else ("up", "down")
+                for sense in senses:
+                    sub = entry.get(sense)
+                    if sub:
+                        errors += self._check_action(
+                            f"pinch_drag.modes.{mode}.{axis}.{sense}",
+                            sub.get("action", ""), sub.get("args", {}), modes)
+
         if errors:
             raise ValueError("Errores en config.yaml:\n  - " + "\n  - ".join(errors))
 
@@ -150,11 +169,27 @@ class Config:
              b.label or b.action)
             for b in self.bindings.get(group, [])
         ]
-        # El control analógico no es un binding, pero desde fuera se usa igual y
-        # omitirlo de la chuleta lo dejaría invisible.
+        # El gatillo de pinza no es un binding, pero desde fuera se usa igual y
+        # omitirlo de la chuleta lo dejaría invisible, que es justo lo contrario
+        # de lo que hace falta con un gesto nuevo.
+        rows += self.describe_pinch(group)
         analog = self.analog.get(group)
         if analog:
             rows.append((f"{poses.SLIDER.name} ◄►", analog.get("label", "Analógico")))
+        return rows
+
+    def describe_pinch(self, mode: str) -> list[tuple[str, str]]:
+        """Filas de la chuleta correspondientes al arrastre con pinza."""
+        axes = (self.pinch_drag.get("modes") or {}).get(mode) or {}
+        rows: list[tuple[str, str]] = []
+        for axis, arrows in (("horizontal", "◄►"), ("vertical", "▲▼")):
+            entry = axes.get(axis)
+            if entry:
+                rows.append((f"{poses.SLIDER.name} {arrows} arrastrar",
+                             entry.get("label", axis)))
+        tap = axes.get("tap")
+        if tap:
+            rows.append((f"{poses.SLIDER.name} · tocar", tap.get("label", "Tocar")))
         return rows
 
 

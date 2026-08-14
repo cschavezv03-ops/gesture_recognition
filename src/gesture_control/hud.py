@@ -292,7 +292,8 @@ class Hud:
     def render(self, frame: np.ndarray, hand, state: EngineState, *, mode: str,
                paused: bool, volume: float, muted: bool, toast: str, toast_age: float,
                fps: float, inference_ms: float, delegate: str, dry_run: bool = False,
-               mouse_status: str = "", now: float = 0.0, wheel=None) -> np.ndarray:
+               mouse_status: str = "", now: float = 0.0, wheel=None,
+               switcher=None, pinch=None) -> np.ndarray:
         h, w = frame.shape[:2]
         self._t = now
 
@@ -313,6 +314,11 @@ class Hud:
             # obedecer, mostrar la chuleta de gestos solo induce a error.
             self._draw_status(frame, mode, paused, state)
             self._draw_paused(frame, w, h)
+            return self.text.flush(frame)
+
+        if switcher is not None and switcher.active:
+            self._draw_switcher(frame, w, h, switcher)
+            self._draw_telemetry(frame, w, fps, inference_ms, delegate, mouse_status)
             return self.text.flush(frame)
 
         if wheel is not None and wheel.active:
@@ -337,7 +343,9 @@ class Hud:
         # la chuleta y el indicador de volumen, y ahí se solaparían. Nunca
         # coinciden entre sí, porque el deslizador ya muestra su propio valor.
         top = 70 if dry_run else 28
-        if state.slider_active:
+        if pinch is not None and pinch.engaged:
+            self._draw_pinch(frame, w, top, pinch)
+        elif state.slider_active:
             self._draw_slider(frame, w, top, state)
         elif toast and toast_age < self.toast_duration:
             self._draw_toast(frame, w, top, toast, toast_age)
@@ -462,6 +470,93 @@ class Hud:
                       COL_PRIMARY, tracking=5)
         hint = "Apunta con el dedo · mantenlo para confirmar · cierra la mano para cancelar"
         self.text.add((w - self.text.width(hint, 14)) // 2, h - 44, hint, 14, COL_SOFT)
+
+    def _draw_pinch(self, frame, w, top, pinch) -> None:
+        """Estado del gatillo de pinza: eje fijado, sentido y pasos emitidos."""
+        if pinch.axis:
+            title = pinch.label.upper() or pinch.axis.upper()
+            detail = f"{pinch.steps:+d}" if pinch.steps else "—"
+        else:
+            title, detail = "ENGANCHADO", "elige dirección"
+        width = max(self.text.width(title, 20, 3), 220) + 120
+        x = (w - width) // 2
+        _tint(frame, x, top, width, 54, 0.7)
+        _brackets(frame, x, top, width, 54, COL_ACCENT, size=12, thickness=1)
+        self.text.add(x + 22, top + 14, title, 20, COL_ACCENT, tracking=3)
+        self.text.right(x + width - 22, top + 15, detail, 20, COL_TEXT)
+
+        # Barra de avance hacia el siguiente paso: hace visible cuánto falta
+        # para que salte la próxima pestaña o la próxima muesca.
+        if pinch.axis:
+            bar_x, bar_y, bar_w = x + 22, top + 44, width - 44
+            cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_w, bar_y + 4), COL_BG, -1)
+            filled = int(bar_w * min(abs(pinch.progress), 1.0))
+            cv2.rectangle(frame, (bar_x, bar_y), (bar_x + filled, bar_y + 4), COL_SOFT, -1)
+
+    def _draw_switcher(self, frame, w, h, switcher) -> None:
+        """Rejilla de ventanas con las bandas de acoplado en los bordes."""
+        overlay = np.empty_like(frame)
+        overlay[:] = COL_BG
+        cv2.addWeighted(overlay, 0.62, frame, 0.38, 0, dst=frame)
+
+        band = switcher.edge_band
+        if switcher.snap_enabled:
+            zones = (
+                ("left", 0, 0, int(band * w), h, "MITAD\nIZQUIERDA"),
+                ("right", int((1 - band) * w), 0, int(band * w), h, "MITAD\nDERECHA"),
+                ("top", int(band * w), 0, int((1 - 2 * band) * w), int(band * h), "MAXIMIZAR"),
+            )
+            for name, zx, zy, zw, zh, label in zones:
+                chosen = switcher.edge == name
+                _tint(frame, zx, zy, zw, zh, 0.5 if chosen else 0.25,
+                      COL_ACCENT if chosen else COL_BG)
+                _brackets(frame, zx + 4, zy + 4, zw - 8, zh - 8,
+                          COL_ACCENT if chosen else COL_DIM, size=14, thickness=1)
+                lines = label.split("\n")
+                # La banda superior es baja y comparte espacio con el título, así
+                # que su rótulo se apoya en la parte de abajo en vez de centrarse.
+                base = zh - 12 - 18 * len(lines) if name == "top" else zh // 2 - 10
+                for i, line in enumerate(lines):
+                    self.text.add(zx + zw // 2 - self.text.width(line, 14, 2) // 2,
+                                  zy + base + i * 18, line, 14,
+                                  COL_TEXT if chosen else COL_SOFT, tracking=2)
+
+        for i, window in enumerate(switcher.windows):
+            cx, cy, cw, ch = switcher.cell(i)
+            x, y = int(cx * w) + 8, int(cy * h) + 8
+            cell_w, cell_h = int(cw * w) - 16, int(ch * h) - 16
+            chosen = (i == switcher.selected)
+            _tint(frame, x, y, cell_w, cell_h, 0.68 if chosen else 0.45,
+                  COL_ACCENT if chosen else COL_BG)
+            _brackets(frame, x, y, cell_w, cell_h,
+                      COL_ACCENT if chosen else COL_DIM,
+                      size=18, thickness=2 if chosen else 1)
+
+            title = window.title
+            size = 15
+            # Los títulos de ventana son largos; se recortan al ancho de la
+            # casilla en vez de desbordarse sobre la de al lado.
+            while len(title) > 4 and self.text.width(title, size) > cell_w - 24:
+                title = title[:-2]
+            if title != window.title:
+                title += "…"
+            # Sobre el ámbar de la casilla marcada, texto oscuro; sobre el fondo
+            # apagado de las demás, texto claro.
+            self.text.add(x + 14, y + cell_h // 2 - 10, title, size,
+                          COL_BG if chosen else COL_TEXT)
+            self.text.add(x + 14, y + 10, f"{i + 1:02d}", 12,
+                          COL_BG if chosen else COL_DIM, tracking=2)
+
+        px, py = int(switcher.pointer[0] * w), int(switcher.pointer[1] * h)
+        cv2.circle(frame, (px, py), 13, COL_ACCENT, 2, cv2.LINE_AA)
+        cv2.circle(frame, (px, py), 3, COL_TEXT, -1, cv2.LINE_AA)
+
+        # El título va a la esquina, no centrado: en el centro está la banda de
+        # maximizar y los dos rótulos se pisarían.
+        self.text.add(26, 18, "CAMBIAR DE VENTANA", 17, COL_PRIMARY, tracking=5)
+        hint = ("Señala con el dedo · abre la mano para saltar a ella · "
+                "llévala a un borde para acoplarla")
+        self.text.add((w - self.text.width(hint, 14)) // 2, h - 34, hint, 14, COL_SOFT)
 
     def _draw_status(self, frame, mode, paused, state: EngineState) -> None:
         x, y, w, h = 26, 26, 300, 118
@@ -711,6 +806,11 @@ class Hud:
                 else:
                     prefix = "•"
                 grouped.setdefault(b.gesture, []).append(f"{prefix}  {b.label or b.action}")
+        # La pinza no es un binding: sus acciones salen de la sección pinch_drag,
+        # pero en la guía tiene que aparecer como un gesto más.
+        for label, description in self.config.describe_pinch(mode):
+            marker = "◄►" if "◄►" in label else ("▲▼" if "▲▼" in label else "•")
+            grouped.setdefault("Slider", []).append(f"{marker}  {description}")
         analog = self.config.analog.get(mode)
         if analog:
             grouped.setdefault("Slider", []).append(f"◄►  {analog.get('label', 'Analógico')}")

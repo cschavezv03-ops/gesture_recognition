@@ -32,10 +32,6 @@ class MouseController:
         self.max_alpha = float(cfg.get("max_smoothing", 0.65))
         self.accel_distance = float(cfg.get("accel_distance", 120.0))
         self.deadzone_px = float(cfg.get("deadzone_px", 1.5))
-        self.pinch_close = float(cfg.get("pinch_click_threshold", 0.45))
-        self.pinch_open = float(cfg.get("pinch_release_threshold", 0.62))
-        self.scroll_sensitivity = float(cfg.get("scroll_sensitivity", 900.0))
-        self.invert_scroll = bool(cfg.get("invert_scroll", False))
 
         win_input.enable_dpi_awareness()
         self.screen_x, self.screen_y, self.screen_w, self.screen_h = win_input.virtual_screen()
@@ -44,9 +40,6 @@ class MouseController:
         self._reference = ""             # 'index' o 'palm'
         self._offset = (0.0, 0.0)
         self._button_down = False
-        self._pinch_closed = False
-        self._scroll_anchor: float | None = None
-        self._scroll_accum = 0.0
         self.status = ""
 
     def reset(self) -> None:
@@ -55,31 +48,24 @@ class MouseController:
         self._pos = None
         self._reference = ""
         self._offset = (0.0, 0.0)
-        self._pinch_closed = False
-        self._scroll_anchor = None
-        self._scroll_accum = 0.0
         self.status = ""
 
     # ------------------------------------------------------------------ #
 
-    def update(self, hand: HandResult) -> None:
+    def update(self, hand: HandResult, frozen: bool = False) -> None:
+        """Actualiza cursor y botones. Con ``frozen`` el cursor se queda quieto.
+
+        Se congela mientras la pinza está enganchada: durante un desplazamiento
+        el índice sigue extendido, y sin esto el cursor se arrastraría por la
+        pantalla al mismo tiempo que se hace scroll.
+        """
         if not hand.present:
             self.reset()
             self.status = "sin mano"
             return
 
         lm = hand.landmarks
-        _, index, middle, ring, pinky = lmk.fingers_extended(lm)
-
-        # --- Desplazamiento: índice y corazón extendidos, movimiento vertical ---
-        if index and middle and not ring and not pinky:
-            self._release_button()
-            self._scroll(lm)
-            self.status = "desplazando"
-            return
-
-        self._scroll_anchor = None
-        self._scroll_accum = 0.0
+        _, index, middle, _, _ = lmk.fingers_extended(lm)
 
         # --- Puño: agarrar. El cursor pasa a seguir la palma ---------------
         if not index and not middle:
@@ -95,9 +81,12 @@ class MouseController:
         if not index:
             self.status = "cursor en pausa"
             return
+        if frozen:
+            self.status = "desplazando"
+            return
 
         self._move(lm, "index")
-        self._update_right_click(lm)
+        self.status = "cursor"
 
     # ------------------------------------------------------------------ #
 
@@ -134,40 +123,6 @@ class MouseController:
                          self._pos[1] + alpha * (target[1] - self._pos[1]))
 
         win_input.move_cursor(int(round(self._pos[0])), int(round(self._pos[1])))
-
-    def _update_right_click(self, lm) -> None:
-        """Juntar el pulgar y el índice dispara un clic derecho, una sola vez.
-
-        Los umbrales de cierre y apertura son distintos (histéresis) para que el
-        clic no se repita cuando la separación se queda justo en la frontera.
-        """
-        ratio = lmk.pinch_ratio(lm)
-        if not self._pinch_closed and ratio < self.pinch_close:
-            self._pinch_closed = True
-            win_input.click("right")
-            self.status = "clic derecho"
-            return
-        if self._pinch_closed and ratio > self.pinch_open:
-            self._pinch_closed = False
-        if not self._pinch_closed:
-            self.status = "cursor"
-
-    def _scroll(self, lm) -> None:
-        y = float(lm[lmk.INDEX_TIP, 1])
-        if self._scroll_anchor is None:
-            self._scroll_anchor = y
-        delta = (self._scroll_anchor - y) / max(lmk.hand_scale(lm), 1e-6)
-        if self.invert_scroll:
-            delta = -delta
-        # El acumulador conserva el signo y el resto entre fotogramas: así un
-        # arrastre lento acaba produciendo muescas en vez de perderse, y un
-        # cambio de sentido no se cancela contra lo ya acumulado.
-        self._scroll_accum += delta * self.scroll_sensitivity
-        while abs(self._scroll_accum) >= 120.0:
-            notch = 120.0 if self._scroll_accum > 0 else -120.0
-            win_input.scroll(int(notch))
-            self._scroll_accum -= notch
-        self._scroll_anchor = y
 
     def _release_button(self) -> None:
         if self._button_down:

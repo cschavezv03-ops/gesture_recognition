@@ -13,8 +13,11 @@ from .config import Config
 from .engine import GestureEngine
 from .hud import Hud
 from .mouse import MouseController
+from .pinchdrag import PinchDrag
 from .recognizer import GestureStream, HandResult
+from .switcher import WindowSwitcher
 from .wheel import CommandWheel
+from .win import windows as win
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +37,9 @@ class App:
 
         self.engine = GestureEngine(config.engine, config.bindings, config.analog)
         self.mouse = MouseController(config.mouse)
+        self.pinch = PinchDrag(config.pinch_drag)
         self.wheel = CommandWheel(config.wheel, config.wheel_items)
+        self.switcher = WindowSwitcher(config.switcher)
         self.router = ActionRouter(self, config.apps)
         self.hud = Hud(config)
 
@@ -54,6 +59,8 @@ class App:
         if self.mode == "mouse":
             self.mouse.reset()
         self.wheel.close()
+        self.switcher.close()
+        self.pinch.reset()
         self.mode = mode
         self.engine.reset()
         log.info("Modo: %s", mode)
@@ -63,6 +70,8 @@ class App:
         if self.paused:
             self.mouse.reset()
         self.wheel.close()
+        self.switcher.close()
+        self.pinch.reset()
         self.engine.reset()
         log.info("Pausa: %s", self.paused)
         return self.paused
@@ -75,6 +84,25 @@ class App:
             self.mouse.reset()
             return True
         return False
+
+    def open_switcher(self) -> bool:
+        """Despliega la rejilla de ventanas abiertas."""
+        if self.switcher.open():
+            self.mouse.reset()
+            return True
+        return False
+
+    def _apply_switcher(self, result) -> None:
+        """Ejecuta lo que decidió el conmutador al soltar la mano."""
+        if result.action == "cancel" or result.window is None:
+            return
+        if self.dry_run:
+            self.router.notify(f"[prueba] {result.message}")
+            return
+        if result.action == "snap":
+            win.snap(result.window.handle, result.edge)
+        win.activate(result.window.handle)
+        self.router.notify(result.message)
 
     def stop(self) -> None:
         self.running = False
@@ -144,19 +172,36 @@ class App:
                 self._hand = hand
                 self._aspect = frame.shape[1] / max(frame.shape[0], 1)
 
-                if self.wheel.active:
-                    # Con la rueda desplegada, la mano está dedicada a elegir:
-                    # dejar el motor activo dispararía acciones al apuntar.
+                # Conmutador y rueda son modales: mientras están desplegados la
+                # mano está dedicada a elegir, y dejar el motor activo
+                # dispararía acciones sueltas al apuntar.
+                if self.switcher.active:
+                    result = self.switcher.update(hand, now)
+                    if result:
+                        self._apply_switcher(result)
+                    self.engine.reset()
+                    self.pinch.reset()
+                elif self.wheel.active:
                     chosen = self.wheel.update(hand, now)
                     if chosen:
                         self._dispatch([chosen])
                     self.engine.reset()
+                    self.pinch.reset()
                 else:
-                    events = self.engine.update(hand, self.mode, self.paused, now)
-                    if events:
-                        self._dispatch(events)
+                    if not self.paused:
+                        dragged = self.pinch.update(hand, self.mode, now)
+                        if dragged:
+                            self._dispatch(dragged)
+                    if self.pinch.engaged:
+                        # La pinza tiene la mano tomada: interpretar además su
+                        # pose entraría en modo cursor a mitad de un arrastre.
+                        self.engine.reset()
+                    else:
+                        events = self.engine.update(hand, self.mode, self.paused, now)
+                        if events:
+                            self._dispatch(events)
                     if self.mode == "mouse" and not self.paused and not self.dry_run:
-                        self.mouse.update(hand)
+                        self.mouse.update(hand, frozen=self.pinch.engaged)
 
                 self._fps = 0.9 * self._fps + 0.1 / max(now - self._last_frame_at, 1e-6)
                 self._last_frame_at = now
@@ -168,7 +213,7 @@ class App:
                     toast=self.router.toast, toast_age=now - self.router.toast_at,
                     fps=self._fps, inference_ms=inference_ms,
                     delegate=recognizer.delegate, dry_run=self.dry_run, now=now,
-                    wheel=self.wheel,
+                    wheel=self.wheel, switcher=self.switcher, pinch=self.pinch,
                     mouse_status=self.mouse.status if self.mode == "mouse" else "",
                 )
                 cv2.imshow(WINDOW, canvas)

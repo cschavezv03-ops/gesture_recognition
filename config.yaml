@@ -33,16 +33,54 @@ engine:
   stability_frames: 3
   min_gesture_confidence: 0.6
   # Velocidad de la palma (en anchos de mano por segundo) por encima de la cual
-  # se inhiben los disparos estáticos, para que un barrido no active además el
-  # gesto que se mantiene quieto.
+  # se inhiben los disparos por permanencia, para que no salten mientras se
+  # coloca la mano.
   motion_gate: 2.5
   default_cooldown: 0.6
-  swipe:
-    min_distance: 1.0   # anchos de mano recorridos
-    min_speed: 2.8      # anchos de mano por segundo
-    window: 0.45        # ventana temporal analizada, en segundos
-    axis_ratio: 1.35    # cuánto debe dominar un eje sobre el otro
-    cooldown: 0.55
+
+# --------------------------------------------------------------------------- #
+# El gatillo: juntar pulgar e índice engancha, moverse arrastra, separarlos
+# suelta. Sustituye a los barridos, que se disparaban con cualquier movimiento
+# porque no tenían un momento explícito de enganche.
+# --------------------------------------------------------------------------- #
+pinch_drag:
+  engage: 0.42          # separación pulgar-índice (normalizada) para enganchar
+  release: 0.62         # histéresis para soltar
+  axis_lock: 0.30       # recorrido, en anchos de mano, que decide el eje
+  step: 0.55            # recorrido por paso, en anchos de mano
+  tap_max_seconds: 0.6  # tiempo máximo para que una pinza cuente como toque
+  modes:
+    control:
+      horizontal:
+        label: Pestañas
+        right: {action: hotkey, args: {keys: [ctrl, tab]}}
+        left:  {action: hotkey, args: {keys: [ctrl, shift, tab]}}
+      vertical:
+        label: Desplazar
+        step: 0.16      # el scroll necesita pasos más cortos para no ir a saltos
+        up:   {action: scroll, args: {amount: 120}}
+        down: {action: scroll, args: {amount: -120}}
+    mouse:
+      vertical:
+        label: Desplazar
+        step: 0.16
+        up:   {action: scroll, args: {amount: 120}}
+        down: {action: scroll, args: {amount: -120}}
+      # Pinza que se cierra y se abre sin moverse: el equivalente a un clic.
+      tap: {action: mouse_click, args: {button: right}, label: Clic derecho}
+
+# --------------------------------------------------------------------------- #
+# Conmutador de ventanas: el puño despliega la rejilla, el índice señala y abrir
+# la mano suelta sobre lo señalado. Llevar el dedo a un borde acopla la ventana
+# a esa mitad de la pantalla en vez de solo activarla.
+# --------------------------------------------------------------------------- #
+switcher:
+  region: [0.22, 0.18, 0.78, 0.74]  # zona del encuadre que cubre toda la rejilla
+  max_windows: 9
+  edge_band: 0.13       # anchura de las bandas de acoplado, en fracción de pantalla
+  lost_timeout: 0.7
+  confirm_frames: 3     # fotogramas con la mano abierta antes de confirmar
+  snap: true
 
 mouse:
   # Porción del encuadre (x0, y0, x1, y1) que se mapea sobre toda la pantalla.
@@ -52,10 +90,6 @@ mouse:
   max_smoothing: 0.65         # inercia con la mano rápida → respuesta
   accel_distance: 120.0       # píxeles a partir de los cuales se usa max_smoothing
   deadzone_px: 1.5
-  pinch_click_threshold: 0.45   # pinza cerrada → clic derecho
-  pinch_release_threshold: 0.62 # histéresis para volver a armarlo
-  scroll_sensitivity: 900.0
-  invert_scroll: false
 
 hud:
   show_help_on_start: true
@@ -70,31 +104,22 @@ apps:
   terminal: wt.exe
   calculadora: calc.exe
 
-# Control continuo: la distancia pulgar-índice se convierte en un valor 0-1.
-# La pose es pulgar e índice extendidos con los otros tres dedos recogidos.
-analog:
-  control:
-    action: volume_set
-    engage_time: 0.4          # segundos manteniendo la pose antes de tomar el control
-    range: [0.30, 1.50]       # separación normalizada que corresponde a 0% y 100%
-    label: Volumen
-
-# Rueda de comandos: un menú radial que se abre junto a la mano. Es lo que
-# permite tener muchas más acciones sin inventar más poses, y lo único que se
-# puede usar sin haberlo memorizado antes, porque las opciones están escritas.
+# Rueda de comandos: menú radial que se abre junto a la mano. Es donde viven las
+# acciones que deben ser imposibles de disparar sin querer, porque exigen apuntar
+# y mantener, y las que se usan de vez en cuando y no merecen un gesto propio.
 wheel:
   dwell: 0.75           # segundos apuntando a una opción para confirmarla
   inner_radius: 1.15    # zona muerta central, en anchos de mano
   outer_radius: 2.7     # radio de las etiquetas, en anchos de mano
-  lost_timeout: 0.6     # margen antes de cerrar si se pierde la mano
+  lost_timeout: 0.6
   items:
     # El orden importa: el primero queda arriba y siguen en sentido horario.
     control:
-      - {label: Reproducir/pausar, action: media, args: {key: playpause}}
-      - {label: Pista siguiente, action: media, args: {key: nexttrack}}
+      - {label: Nueva pestaña, action: hotkey, args: {keys: [ctrl, t]}}
+      - {label: Cerrar pestaña, action: hotkey, args: {keys: [ctrl, w]}}
       - {label: Silenciar, action: volume_mute_toggle}
       - {label: Recorte de pantalla, action: hotkey, args: {keys: [win, shift, s]}}
-      - {label: Modo ratón, action: set_mode, args: {mode: mouse}}
+      - {label: Modo cursor, action: set_mode, args: {mode: mouse}}
       - {label: Terminal, action: launch, args: {app: terminal}}
       - {label: Explorador, action: launch, args: {app: explorador}}
       - {label: Navegador, action: launch, args: {app: navegador}}
@@ -104,17 +129,16 @@ wheel:
       - {label: Copiar, action: hotkey, args: {keys: [ctrl, c]}}
       - {label: Pegar, action: hotkey, args: {keys: [ctrl, v]}}
       - {label: Deshacer, action: hotkey, args: {keys: [ctrl, z]}}
-      - {label: Cambiar ventana, action: hotkey, args: {keys: [alt, tab]}}
+      - {label: Cerrar pestaña, action: hotkey, args: {keys: [ctrl, w]}}
 
 # REGLA: ningún gesto puede tener a la vez un disparo estático (hold/repeat) y
-# barridos. Al encadenar barridos la mano se queda quieta entre intentos y el
-# temporizador de permanencia se cumple antes de que el barrido se complete.
-# La validación de arranque lo comprueba y se niega a ejecutar si ocurre.
+# barridos. La validación de arranque lo comprueba. Ya no se usan barridos en
+# absoluto: todo lo direccional pasa por el gatillo de pinza.
 bindings:
   # Activos en todos los modos, incluso en pausa.
   global:
     # Ojo: esto apaga el reconocimiento de gestos, NO pausa el vídeo que estés
-    # viendo. Para pausar el vídeo usa la rueda de comandos.
+    # viendo. Para pausar el vídeo, la uve mantenida.
     - gesture: Open_Palm
       trigger: hold
       duration: 1.5
@@ -123,7 +147,6 @@ bindings:
       cooldown: 1.2
 
   control:
-    # --- Volumen: las dos únicas poses con disparo repetido ---------------
     - gesture: Thumb_Up
       trigger: repeat
       interval: 0.15
@@ -136,79 +159,37 @@ bindings:
       action: volume_step
       args: {delta: -2}
       label: Bajar volumen
-
-    # --- Pestañas: la uve solo barre, nunca se queda quieta ---------------
     - gesture: Victory
-      trigger: swipe
-      direction: right
-      action: hotkey
-      args: {keys: [ctrl, tab], label: Pestaña siguiente}
-      label: Pestaña siguiente
-    - gesture: Victory
-      trigger: swipe
-      direction: left
-      action: hotkey
-      args: {keys: [ctrl, shift, tab], label: Pestaña anterior}
-      label: Pestaña anterior
-    - gesture: Victory
-      trigger: swipe
-      direction: up
-      action: hotkey
-      args: {keys: [ctrl, t], label: Nueva pestaña}
-      label: Nueva pestaña
-    - gesture: Victory
-      trigger: swipe
-      direction: down
-      action: hotkey
-      args: {keys: [ctrl, w], label: Cerrar pestaña}
-      label: Cerrar pestaña
+      trigger: hold
+      duration: 0.7
+      action: media
+      args: {key: playpause}
+      label: Pausar el vídeo o la música
+      cooldown: 1.2
+    - gesture: Closed_Fist
+      trigger: hold
+      duration: 0.4
+      action: open_switcher
+      label: Cambiar de ventana
       cooldown: 1.0
-
-    # --- Escritorios y ventanas: el puño solo barre ------------------------
-    - gesture: Closed_Fist
-      trigger: swipe
-      direction: right
-      action: hotkey
-      args: {keys: [win, ctrl, right], label: Escritorio siguiente}
-      label: Escritorio siguiente
-    - gesture: Closed_Fist
-      trigger: swipe
-      direction: left
-      action: hotkey
-      args: {keys: [win, ctrl, left], label: Escritorio anterior}
-      label: Escritorio anterior
-    - gesture: Closed_Fist
-      trigger: swipe
-      direction: up
-      action: hotkey
-      args: {keys: [win, tab], label: Vista de tareas}
-      label: Vista de tareas
-    - gesture: Closed_Fist
-      trigger: swipe
-      direction: down
-      action: hotkey
-      args: {keys: [win, d], label: Mostrar escritorio}
-      label: Mostrar escritorio
-
-    # --- Poses de permanencia: ninguna de ellas barre ---------------------
+    - gesture: Pointing_Up
+      trigger: hold
+      duration: 0.6
+      action: set_mode
+      args: {mode: mouse}
+      label: Modo cursor
+      cooldown: 1.5
     - gesture: ILoveYou
       trigger: hold
       duration: 0.5
       action: open_wheel
       label: Rueda de comandos
       cooldown: 1.0
-    - gesture: Pointing_Up
-      trigger: hold
-      duration: 1.0
-      action: set_mode
-      args: {mode: mouse}
-      label: Modo ratón
-      cooldown: 1.5
 
   mouse:
-    # El cursor, los clics y el desplazamiento no son bindings: los gobierna
-    # MouseController fotograma a fotograma, para que respondan de forma
-    # continua en lugar de por disparos discretos.
+    # El cursor y el clic izquierdo no son bindings: los gobierna MouseController
+    # fotograma a fotograma. El puño aquí agarra en lugar de abrir el conmutador,
+    # que es lo que resulta natural con un cursor delante.
     - gesture: ILoveYou
       trigger: hold
       duration: 0.5

@@ -160,6 +160,21 @@ def _open_wheel(router: ActionRouter, **_) -> str | None:
     return None
 
 
+@action("open_switcher")
+def _open_switcher(router: ActionRouter, **_) -> str | None:
+    if not router.app.open_switcher():
+        return "No hay otras ventanas abiertas"
+    return None
+
+
+@action("scroll")
+def _scroll(router: ActionRouter, amount: int = 120, **_) -> None:
+    # Sin aviso: el desplazamiento se ve en la pantalla que se está leyendo, y
+    # un aviso por muesca convertiría el HUD en un parpadeo.
+    win_input.scroll(int(amount))
+    return None
+
+
 @action("quit")
 def _quit(router: ActionRouter, **_) -> str:
     router.app.stop()
