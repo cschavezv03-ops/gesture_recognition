@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# El modelo se descarga con scripts/download_model.py (8 MB)
+models/*.task
+
+# Configuración local del usuario (sobreescribe config.yaml)
+config.local.yaml

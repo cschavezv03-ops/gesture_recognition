@@ -1,0 +1,217 @@
+# Configuración del control por gestos.
+#
+# Para adaptarlo a tu equipo sin tocar este archivo (ni ensuciar el repositorio),
+# crea un `config.local.yaml` con solo las claves que quieras cambiar; se fusiona
+# encima de este.
+
+camera:
+  # `null` autodetecta la cámara de mayor resolución, que en un equipo con Iriun
+  # es siempre la del móvil. Usa `--list-cameras` para ver los índices.
+  index: null
+  backend: dshow        # dshow | msmf | any
+  width: 1280
+  height: 720
+  fps: 30
+  mirror: true          # Imagen en espejo: mover la mano a la derecha va a la derecha.
+
+recognizer:
+  model_path: models/gesture_recognizer.task
+  # Los wheels de MediaPipe para Windows se compilan sin soporte de GPU, así que
+  # `gpu` acabará cayendo a CPU con un aviso. El modelo es pequeño (8 MB) y
+  # XNNPACK lo resuelve de sobra por encima de 30 FPS.
+  delegate: cpu
+  num_hands: 1
+  min_hand_detection_confidence: 0.5
+  min_hand_presence_confidence: 0.5
+  min_tracking_confidence: 0.5
+
+engine:
+  start_mode: control
+  start_paused: false
+  # Fotogramas consecutivos con la misma etiqueta antes de darla por buena.
+  # Subirlo reduce disparos fantasma y aumenta la latencia percibida.
+  stability_frames: 3
+  min_gesture_confidence: 0.6
+  # Velocidad de la palma (en anchos de mano por segundo) por encima de la cual
+  # se inhiben los disparos estáticos, para que un barrido no active además el
+  # gesto que se mantiene quieto.
+  motion_gate: 2.5
+  default_cooldown: 0.6
+  swipe:
+    min_distance: 1.0   # anchos de mano recorridos
+    min_speed: 2.8      # anchos de mano por segundo
+    window: 0.45        # ventana temporal analizada, en segundos
+    axis_ratio: 1.35    # cuánto debe dominar un eje sobre el otro
+    cooldown: 0.55
+
+mouse:
+  # Porción del encuadre (x0, y0, x1, y1) que se mapea sobre toda la pantalla.
+  # Achicarla exige menos recorrido del brazo pero amplifica el temblor.
+  active_region: [0.20, 0.15, 0.80, 0.75]
+  min_smoothing: 0.12         # inercia con la mano casi quieta → precisión
+  max_smoothing: 0.65         # inercia con la mano rápida → respuesta
+  accel_distance: 120.0       # píxeles a partir de los cuales se usa max_smoothing
+  deadzone_px: 1.5
+  pinch_click_threshold: 0.45   # pinza cerrada → clic derecho
+  pinch_release_threshold: 0.62 # histéresis para volver a armarlo
+  scroll_sensitivity: 900.0
+  invert_scroll: false
+
+hud:
+  show_help_on_start: true
+  toast_duration: 1.8
+  scanlines: true       # líneas de barrido del visor; desactívalas si molestan
+
+# Aplicaciones lanzables. El valor se pasa a `start` de cmd, así que acepta
+# ejecutables, alias del sistema (`ms-settings:`), rutas y URLs.
+apps:
+  navegador: chrome
+  explorador: explorer.exe
+  terminal: wt.exe
+  calculadora: calc.exe
+
+# Control continuo: la distancia pulgar-índice se convierte en un valor 0-1.
+# La pose es pulgar e índice extendidos con los otros tres dedos recogidos.
+analog:
+  control:
+    action: volume_set
+    engage_time: 0.4          # segundos manteniendo la pose antes de tomar el control
+    range: [0.30, 1.50]       # separación normalizada que corresponde a 0% y 100%
+    label: Volumen
+
+# Rueda de comandos: un menú radial que se abre junto a la mano. Es lo que
+# permite tener muchas más acciones sin inventar más poses, y lo único que se
+# puede usar sin haberlo memorizado antes, porque las opciones están escritas.
+wheel:
+  dwell: 0.75           # segundos apuntando a una opción para confirmarla
+  inner_radius: 1.15    # zona muerta central, en anchos de mano
+  outer_radius: 2.7     # radio de las etiquetas, en anchos de mano
+  lost_timeout: 0.6     # margen antes de cerrar si se pierde la mano
+  items:
+    # El orden importa: el primero queda arriba y siguen en sentido horario.
+    control:
+      - {label: Reproducir/pausar, action: media, args: {key: playpause}}
+      - {label: Pista siguiente, action: media, args: {key: nexttrack}}
+      - {label: Silenciar, action: volume_mute_toggle}
+      - {label: Recorte de pantalla, action: hotkey, args: {keys: [win, shift, s]}}
+      - {label: Modo ratón, action: set_mode, args: {mode: mouse}}
+      - {label: Terminal, action: launch, args: {app: terminal}}
+      - {label: Explorador, action: launch, args: {app: explorador}}
+      - {label: Navegador, action: launch, args: {app: navegador}}
+    mouse:
+      - {label: Volver a control, action: set_mode, args: {mode: control}}
+      - {label: Doble clic, action: mouse_double_click}
+      - {label: Copiar, action: hotkey, args: {keys: [ctrl, c]}}
+      - {label: Pegar, action: hotkey, args: {keys: [ctrl, v]}}
+      - {label: Deshacer, action: hotkey, args: {keys: [ctrl, z]}}
+      - {label: Cambiar ventana, action: hotkey, args: {keys: [alt, tab]}}
+
+# REGLA: ningún gesto puede tener a la vez un disparo estático (hold/repeat) y
+# barridos. Al encadenar barridos la mano se queda quieta entre intentos y el
+# temporizador de permanencia se cumple antes de que el barrido se complete.
+# La validación de arranque lo comprueba y se niega a ejecutar si ocurre.
+bindings:
+  # Activos en todos los modos, incluso en pausa.
+  global:
+    # Ojo: esto apaga el reconocimiento de gestos, NO pausa el vídeo que estés
+    # viendo. Para pausar el vídeo usa la rueda de comandos.
+    - gesture: Open_Palm
+      trigger: hold
+      duration: 1.5
+      action: toggle_pause
+      label: Apagar / encender el control
+      cooldown: 1.2
+
+  control:
+    # --- Volumen: las dos únicas poses con disparo repetido ---------------
+    - gesture: Thumb_Up
+      trigger: repeat
+      interval: 0.15
+      action: volume_step
+      args: {delta: 2}
+      label: Subir volumen
+    - gesture: Thumb_Down
+      trigger: repeat
+      interval: 0.15
+      action: volume_step
+      args: {delta: -2}
+      label: Bajar volumen
+
+    # --- Pestañas: la uve solo barre, nunca se queda quieta ---------------
+    - gesture: Victory
+      trigger: swipe
+      direction: right
+      action: hotkey
+      args: {keys: [ctrl, tab], label: Pestaña siguiente}
+      label: Pestaña siguiente
+    - gesture: Victory
+      trigger: swipe
+      direction: left
+      action: hotkey
+      args: {keys: [ctrl, shift, tab], label: Pestaña anterior}
+      label: Pestaña anterior
+    - gesture: Victory
+      trigger: swipe
+      direction: up
+      action: hotkey
+      args: {keys: [ctrl, t], label: Nueva pestaña}
+      label: Nueva pestaña
+    - gesture: Victory
+      trigger: swipe
+      direction: down
+      action: hotkey
+      args: {keys: [ctrl, w], label: Cerrar pestaña}
+      label: Cerrar pestaña
+      cooldown: 1.0
+
+    # --- Escritorios y ventanas: el puño solo barre ------------------------
+    - gesture: Closed_Fist
+      trigger: swipe
+      direction: right
+      action: hotkey
+      args: {keys: [win, ctrl, right], label: Escritorio siguiente}
+      label: Escritorio siguiente
+    - gesture: Closed_Fist
+      trigger: swipe
+      direction: left
+      action: hotkey
+      args: {keys: [win, ctrl, left], label: Escritorio anterior}
+      label: Escritorio anterior
+    - gesture: Closed_Fist
+      trigger: swipe
+      direction: up
+      action: hotkey
+      args: {keys: [win, tab], label: Vista de tareas}
+      label: Vista de tareas
+    - gesture: Closed_Fist
+      trigger: swipe
+      direction: down
+      action: hotkey
+      args: {keys: [win, d], label: Mostrar escritorio}
+      label: Mostrar escritorio
+
+    # --- Poses de permanencia: ninguna de ellas barre ---------------------
+    - gesture: ILoveYou
+      trigger: hold
+      duration: 0.5
+      action: open_wheel
+      label: Rueda de comandos
+      cooldown: 1.0
+    - gesture: Pointing_Up
+      trigger: hold
+      duration: 1.0
+      action: set_mode
+      args: {mode: mouse}
+      label: Modo ratón
+      cooldown: 1.5
+
+  mouse:
+    # El cursor, los clics y el desplazamiento no son bindings: los gobierna
+    # MouseController fotograma a fotograma, para que respondan de forma
+    # continua en lugar de por disparos discretos.
+    - gesture: ILoveYou
+      trigger: hold
+      duration: 0.5
+      action: open_wheel
+      label: Rueda de comandos
+      cooldown: 1.0
