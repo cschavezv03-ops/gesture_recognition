@@ -14,6 +14,7 @@ from typing import Any, Callable
 from .engine import Event
 from .win import apps as win_apps
 from .win import input as win_input
+from .win import windows as win_windows
 from .win.volume import VolumeController
 
 log = logging.getLogger(__name__)
@@ -171,8 +172,19 @@ def _open_switcher(router: ActionRouter, **_) -> str | None:
 def _scroll(router: ActionRouter, amount: int = 120, **_) -> None:
     # Sin aviso: el desplazamiento se ve en la pantalla que se está leyendo, y
     # un aviso por muesca convertiría el HUD en un parpadeo.
-    win_input.scroll(int(amount))
+    if router.app.mode == "mouse":
+        # Con el cursor bajo control, la rueda debe ir donde apunta el usuario.
+        win_input.scroll(int(amount))
+    else:
+        # Sin cursor visible, la rueda iría a parar a la ventana que hubiera
+        # quedado debajo, que con dos pantallas rara vez es la que se mira.
+        win_windows.scroll_foreground(int(amount))
     return None
+
+
+@action("next_monitor")
+def _next_monitor(router: ActionRouter, **_) -> str:
+    return f"Pantalla {router.app.mouse.next_monitor()}"
 
 
 @action("quit")

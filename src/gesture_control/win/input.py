@@ -170,6 +170,45 @@ def virtual_screen() -> tuple[int, int, int, int]:
     )
 
 
+class _MONITOR_RECT(ctypes.Structure):
+    _fields_ = [("left", wintypes.LONG), ("top", wintypes.LONG),
+                ("right", wintypes.LONG), ("bottom", wintypes.LONG)]
+
+
+_MONITOR_PROC = ctypes.WINFUNCTYPE(
+    wintypes.BOOL, wintypes.HANDLE, wintypes.HDC,
+    ctypes.POINTER(_MONITOR_RECT), wintypes.LPARAM,
+)
+
+
+def monitors() -> list[tuple[int, int, int, int]]:
+    """Pantallas conectadas como ``(x, y, ancho, alto)``, ordenadas de izquierda a derecha.
+
+    Mapear la mano sobre el escritorio virtual completo es lo que arruinaba el
+    cursor con varios monitores: dos pantallas 16:9 en horizontal forman un
+    rectángulo de relación 3:1, así que el mismo movimiento de mano recorría casi
+    el doble en horizontal que en vertical y los bordes quedaban inalcanzables.
+    Trabajando sobre una sola pantalla la proporción vuelve a coincidir.
+    """
+    found: list[tuple[int, int, int, int]] = []
+
+    def callback(_handle, _hdc, rect, _lparam):
+        r = rect.contents
+        found.append((r.left, r.top, r.right - r.left, r.bottom - r.top))
+        return True
+
+    user32.EnumDisplayMonitors(0, 0, _MONITOR_PROC(callback), 0)
+    if not found:
+        return [virtual_screen()]
+    return sorted(found, key=lambda m: (m[0], m[1]))
+
+
+def cursor_position() -> tuple[int, int]:
+    point = wintypes.POINT()
+    user32.GetCursorPos(ctypes.byref(point))
+    return int(point.x), int(point.y)
+
+
 def move_cursor(x: int, y: int) -> None:
     """Mueve el cursor a coordenadas absolutas de pantalla."""
     vx, vy, vw, vh = virtual_screen()

@@ -92,7 +92,11 @@ def pinch(point: tuple[float, float], gap: float, scale: float = 0.10) -> HandRe
     thumb_tip = (px + half, py)
 
     lm = np.zeros((21, 3), np.float32)
-    cx, cy = px, py + 0.9 * scale
+    # La palma queda a 1,35 anchos de mano de la pinza. Medido sobre las poses
+    # canónicas, la yema del índice sobresale 1,2–1,4 anchos respecto al centro
+    # de la palma al pinzar; acercarla más produciría una mano que ningún gesto
+    # real reproduce y que el detector tomaría por un puño.
+    cx, cy = px, py + 1.35 * scale
     knuckles = _palm(lm, cx, cy, scale)
     for name in ("middle", "ring", "pinky"):
         build_finger(lm, CHAINS[name], knuckles[name], (0.0, -1.0), scale, curled=True)

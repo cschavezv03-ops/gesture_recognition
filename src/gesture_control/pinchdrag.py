@@ -57,6 +57,7 @@ class PinchDrag:
         self.axis_lock = float(cfg.get("axis_lock", 0.30))
         self.default_step = float(cfg.get("step", 0.55))
         self.tap_max_seconds = float(cfg.get("tap_max_seconds", 0.6))
+        self.min_reach = float(cfg.get("min_index_reach", 0.80))
 
         self.modes: dict[str, dict[str, AxisConfig]] = {}
         self.taps: dict[str, tuple[str, dict[str, Any], str]] = {}
@@ -106,12 +107,14 @@ class PinchDrag:
             return self._release(now, cancelled=True)
 
         lm = hand.landmarks
-        _, index, _, _, _ = lmk.fingers_extended(lm)
         ratio = lmk.pinch_ratio(lm)
+        # Se mide cuánto sobresale el índice, no si está recto: al pinzar el dedo
+        # se dobla para alcanzar el pulgar, y exigirlo recto impedía enganchar.
+        # Lo que hay que descartar es el puño, donde las yemas también se tocan
+        # pero el índice queda recogido contra la palma.
+        index = lmk.index_reach(lm) >= self.min_reach
 
         if not self.engaged:
-            # Se exige el índice extendido: en un puño las yemas también quedan
-            # cerca y se engancharía sin querer al cerrar la mano.
             if index and ratio < self.engage_ratio:
                 self.engaged = True
                 self._origin = self._pinch_point(lm)

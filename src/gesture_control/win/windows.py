@@ -154,6 +154,35 @@ def activate(handle: int) -> bool:
     return foreground() == handle
 
 
+def window_rect(handle: int) -> tuple[int, int, int, int] | None:
+    """Rectángulo de una ventana, ``(x, y, ancho, alto)``."""
+    rect = _RECT()
+    if not user32.GetWindowRect(wintypes.HWND(handle), ctypes.byref(rect)):
+        return None
+    return (rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top)
+
+
+def scroll_foreground(amount: int) -> bool:
+    """Desplaza la ventana activa, llevando el cursor sobre ella si hace falta.
+
+    La rueda del ratón la recibe la ventana que está **bajo el cursor**, no la
+    que tiene el foco. En modo control el cursor no se mueve, así que el
+    desplazamiento acababa en cualquier ventana que hubiera quedado debajo —a
+    menudo en la otra pantalla— y parecía que no funcionaba. Aquí se comprueba
+    primero y, si el cursor está fuera, se centra sobre la ventana activa.
+    """
+    from . import input as win_input
+
+    rect = window_rect(foreground())
+    if rect is not None:
+        x, y, width, height = rect
+        cx, cy = win_input.cursor_position()
+        if not (x <= cx < x + width and y <= cy < y + height):
+            win_input.move_cursor(x + width // 2, y + height // 2)
+    win_input.scroll(amount)
+    return True
+
+
 def work_area() -> tuple[int, int, int, int]:
     """Área utilizable del escritorio, ``(x, y, ancho, alto)``, sin la barra de tareas."""
     rect = _RECT()

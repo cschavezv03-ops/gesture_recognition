@@ -216,7 +216,28 @@ hace lo mismo que un Alt+Tab suelto.
 | **PUÑO** cerrado | Clic izquierdo mantenido: agarrar y arrastrar |
 | **PINZA** juntada y soltada sin mover | Clic derecho |
 | **PINZA** + arrastrar ↑/↓ | Desplazar |
-| **CUERNOS** 0,5 s | Abrir la rueda (contiene «volver a control») |
+| **CUERNOS** 0,5 s | Abrir la rueda (contiene «volver a control» y «cambiar de pantalla») |
+
+La chuleta del visor lista estos gestos mientras estás en el modo, porque son
+los únicos que no se pueden deducir mirando la pantalla.
+
+#### Varias pantallas
+
+El cursor trabaja sobre **un monitor a la vez**, y el visor muestra cuál con un
+esquema de las pantallas conectadas. Se cambia desde la rueda.
+
+No es una limitación, es lo que hace usable el modo. Mapear la mano sobre el
+escritorio virtual completo parece lo natural, pero dos pantallas 16:9 en
+horizontal forman un rectángulo de relación 3:1: el mismo movimiento de mano
+recorre casi el doble en horizontal que en vertical, el temblor se amplifica al
+tener que cubrir el doble de ancho, y los bordes —donde viven la barra de tareas
+y los botones de ventana— quedan fuera de alcance. Sobre un solo monitor la
+relación vuelve a coincidir con la de la cámara, y la zona activa se recorta
+automáticamente si no coincide.
+
+Además, la zona activa se mapea con un pequeño margen que aterriza contra el
+borde de la pantalla: sin él habría que llevar la mano al límite del encuadre
+—donde el seguimiento se degrada— para tocar la barra de tareas.
 
 Pinza quieta es un clic y pinza que se mueve es un arrastre, la misma distinción
 que hace un ratón entre pulsar y arrastrar.
@@ -439,9 +460,21 @@ gobernando los altavoces anteriores. El programa comprueba el dispositivo
 predeterminado una vez y media por segundo y se reengancha solo.
 
 **La pinza no engancha.** Hay que juntar de verdad las yemas del pulgar y el
-índice, con el índice estirado: en un puño las yemas también quedan cerca y por
-eso se exige el dedo extendido. Si te cuesta, sube `pinch_drag.engage` (por
-defecto 0,42). Cuando engancha aparece un rótulo en la parte superior.
+índice, con la mano adelantada: lo que distingue una pinza de un puño es que en
+la pinza el índice sobresale respecto a la palma, no que esté recto (al pinzar
+se dobla para alcanzar el pulgar). Si te cuesta, sube `pinch_drag.engage` (0,42)
+o baja `pinch_drag.min_index_reach` (0,80). Cuando engancha aparece un rótulo en
+la parte superior.
+
+**Se disparan clics solos en modo cursor.** Sube `mouse.press_frames`: son los
+fotogramas seguidos con la mano cerrada que hacen falta para pulsar el botón, y
+existen porque el clasificador lee dedos recogidos durante uno o dos fotogramas
+al mover la mano.
+
+**El cursor no llega a la barra de tareas.** Sube `mouse.edge_overscan`, que es
+la fracción de la zona activa que aterriza contra el borde de la pantalla.
+Comprueba también que el indicador de pantalla del visor señala el monitor en
+el que estás mirando.
 
 **Los pasos de la pinza van demasiado rápido o demasiado lentos.** Cada paso
 equivale a recorrer `pinch_drag.step` anchos de mano: 0,55 para las pestañas y

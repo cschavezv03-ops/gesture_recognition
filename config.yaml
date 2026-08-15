@@ -46,13 +46,18 @@ engine:
 pinch_drag:
   engage: 0.42          # separación pulgar-índice (normalizada) para enganchar
   release: 0.62         # histéresis para soltar
-  axis_lock: 0.30       # recorrido, en anchos de mano, que decide el eje
-  step: 0.55            # recorrido por paso, en anchos de mano
+  axis_lock: 0.22       # recorrido, en anchos de mano, que decide el eje
+  step: 0.30            # recorrido por paso, en anchos de mano
   tap_max_seconds: 0.6  # tiempo máximo para que una pinza cuente como toque
+  # Cuánto debe sobresalir la yema del índice respecto a la palma para que la
+  # pinza cuente. Descarta el puño, donde las yemas también se tocan. No se usa
+  # la rectitud del dedo porque al pinzar se dobla para alcanzar el pulgar.
+  min_index_reach: 0.80
   modes:
     control:
       horizontal:
         label: Pestañas
+        step: 0.30      # medio ancho de mano por pestaña: recorrer cinco cabe en un gesto
         right: {action: hotkey, args: {keys: [ctrl, tab]}}
         left:  {action: hotkey, args: {keys: [ctrl, shift, tab]}}
       vertical:
@@ -83,13 +88,29 @@ switcher:
   snap: true
 
 mouse:
-  # Porción del encuadre (x0, y0, x1, y1) que se mapea sobre toda la pantalla.
+  # Pantalla sobre la que trabaja el cursor, contando desde 0 de izquierda a
+  # derecha. `null` usa la primera. Nunca se mapea sobre el escritorio virtual
+  # completo: con dos monitores en horizontal la relación se va a 3:1, el
+  # movimiento se estira en un eje y los bordes quedan inalcanzables.
+  monitor: null
+  # Porción del encuadre (x0, y0, x1, y1) que se mapea sobre la pantalla. Se
+  # recorta automáticamente para que su relación coincida con la del monitor.
   # Achicarla exige menos recorrido del brazo pero amplifica el temblor.
   active_region: [0.20, 0.15, 0.80, 0.75]
-  min_smoothing: 0.12         # inercia con la mano casi quieta → precisión
-  max_smoothing: 0.65         # inercia con la mano rápida → respuesta
-  accel_distance: 120.0       # píxeles a partir de los cuales se usa max_smoothing
-  deadzone_px: 1.5
+  # Margen de la zona activa que aterriza contra el borde de la pantalla. Sin
+  # él habría que llevar la mano al límite del encuadre —donde el seguimiento
+  # se degrada— para tocar la barra de tareas o el botón de cerrar.
+  edge_overscan: 0.07
+  min_smoothing: 0.10         # inercia con la mano casi quieta → precisión
+  max_smoothing: 0.55         # inercia con la mano rápida → respuesta
+  accel_distance: 160.0       # píxeles a partir de los cuales se usa max_smoothing
+  deadzone_px: 2.0
+  # Fotogramas seguidos con la mano cerrada antes de pulsar el botón. Filtra las
+  # lecturas sueltas de dedos recogidos que se producen al mover la mano y que
+  # provocaban clics fantasma.
+  press_frames: 4
+  release_frames: 2
+  min_index_reach: 0.80       # umbral de puño: alcance del índice sobre la palma
 
 hud:
   show_help_on_start: true
@@ -129,7 +150,7 @@ wheel:
       - {label: Copiar, action: hotkey, args: {keys: [ctrl, c]}}
       - {label: Pegar, action: hotkey, args: {keys: [ctrl, v]}}
       - {label: Deshacer, action: hotkey, args: {keys: [ctrl, z]}}
-      - {label: Cerrar pestaña, action: hotkey, args: {keys: [ctrl, w]}}
+      - {label: Cambiar de pantalla, action: next_monitor}
 
 # REGLA: ningún gesto puede tener a la vez un disparo estático (hold/repeat) y
 # barridos. La validación de arranque lo comprueba. Ya no se usan barridos en

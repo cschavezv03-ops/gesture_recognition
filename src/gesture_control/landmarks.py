@@ -116,6 +116,18 @@ def is_slider_pose(lm: np.ndarray) -> bool:
     return thumb and index and not middle and not ring and not pinky
 
 
+def index_reach(lm: np.ndarray) -> float:
+    """Cuánto sobresale la yema del índice respecto al centro de la palma.
+
+    Vale ~0.4 con la mano cerrada y ~1.3 con el índice fuera, sin importar
+    cuánto se curve el dedo. Es lo que distingue una pinza de un puño: en ambos
+    las yemas del pulgar y el índice están juntas, pero solo en la pinza el
+    índice se adelanta. La prueba de rectitud no sirve aquí, porque al pinzar el
+    dedo se dobla precisamente para alcanzar el pulgar.
+    """
+    return float(np.linalg.norm(lm[INDEX_TIP, :2] - palm_center(lm)) / hand_scale(lm))
+
+
 def is_pinch_closed(lm: np.ndarray, threshold: float = 0.45) -> bool:
     """La punta del pulgar toca la del índice — el "clic" del modo ratón."""
     return pinch_ratio(lm) < threshold

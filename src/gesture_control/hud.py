@@ -293,7 +293,7 @@ class Hud:
                paused: bool, volume: float, muted: bool, toast: str, toast_age: float,
                fps: float, inference_ms: float, delegate: str, dry_run: bool = False,
                mouse_status: str = "", now: float = 0.0, wheel=None,
-               switcher=None, pinch=None) -> np.ndarray:
+               switcher=None, pinch=None, mouse=None) -> np.ndarray:
         h, w = frame.shape[:2]
         self._t = now
 
@@ -328,13 +328,15 @@ class Hud:
             return self.text.flush(frame)
 
         if mode == "mouse":
-            self._draw_active_region(frame, w, h)
+            self._draw_active_region(frame, w, h, mouse)
         if hand.present:
             self._draw_reticle(frame, w, h, hand, state)
 
         self._draw_status(frame, mode, paused, state)
         self._draw_telemetry(frame, w, fps, inference_ms, delegate, mouse_status)
         self._draw_reactor(frame, w, h, volume, muted)
+        if mode == "mouse" and mouse is not None:
+            self._draw_monitors(frame, w, mouse)
 
         if dry_run:
             self._draw_banner(frame, w, "MODO PRUEBA · NO SE EJECUTA NINGUNA ACCIÓN", COL_ACCENT)
@@ -365,11 +367,18 @@ class Hud:
             self._scan[::3] = 16
         cv2.subtract(frame, self._scan, dst=frame)
 
-    def _draw_active_region(self, frame, w, h) -> None:
-        x0, y0, x1, y1 = self.config.mouse.get("active_region", [0.2, 0.15, 0.8, 0.75])
+    def _draw_active_region(self, frame, w, h, mouse=None) -> None:
+        # Se dibuja la zona ya ajustada a la relación del monitor, que es la que
+        # de verdad se está usando, y no la declarada en la configuración.
+        x0, y0, x1, y1 = (mouse.region if mouse is not None
+                          else self.config.mouse.get("active_region",
+                                                     [0.2, 0.15, 0.8, 0.75]))
         _brackets(frame, x0 * w, y0 * h, (x1 - x0) * w, (y1 - y0) * h,
                   COL_SOFT, size=22, thickness=1)
-        self.text.add(int(x0 * w), int(y0 * h) - 22, "ZONA ACTIVA", 13, COL_SOFT, tracking=2)
+        # El rótulo va dentro del recuadro: encima cae justo sobre el panel de
+        # estado, que ocupa toda la esquina superior izquierda.
+        self.text.add(int(x0 * w) + 8, int(y0 * h) + 6, "ZONA ACTIVA", 13,
+                      COL_SOFT, tracking=2)
 
     def _draw_reticle(self, frame, w, h, hand, state: EngineState) -> None:
         """Retícula de seguimiento sobre la mano, con el arco de permanencia."""
@@ -599,6 +608,45 @@ class Hud:
             row_y = y + 14 + i * 20
             self.text.add(x + 16, row_y, key, 11, COL_DIM, tracking=1)
             self.text.right(x + 168, row_y - 2, value, 14, COL_SOFT)
+
+    def _draw_monitors(self, frame, w, mouse) -> None:
+        """Esquema de las pantallas con la activa resaltada.
+
+        Con dos monitores es imposible saber dónde ha ido a parar el cursor
+        mirando solo el vídeo de la cámara, así que el visor tiene que decirlo.
+        """
+        screens = mouse.screens
+        panel_w, panel_h = 184, 74
+        x, y = w - 210, 122
+        _panel(frame, x, y, panel_w, panel_h, alpha=0.55)
+        self.text.add(x + 16, y + 10, "PANTALLA", 11, COL_DIM, tracking=1)
+
+        # Todas las pantallas a la misma escala, respetando su disposición real.
+        left = min(s[0] for s in screens)
+        top = min(s[1] for s in screens)
+        right = max(s[0] + s[2] for s in screens)
+        bottom = max(s[1] + s[3] for s in screens)
+        scale = min((panel_w - 32) / max(right - left, 1),
+                    (panel_h - 44) / max(bottom - top, 1))
+        origin_x = x + 16
+        origin_y = y + 32
+
+        for i, (sx, sy, sw, sh) in enumerate(screens):
+            rx = int(origin_x + (sx - left) * scale)
+            ry = int(origin_y + (sy - top) * scale)
+            rw, rh = max(int(sw * scale), 6), max(int(sh * scale), 5)
+            chosen = i == mouse.monitor
+            if chosen:
+                cv2.rectangle(frame, (rx, ry), (rx + rw, ry + rh), COL_ACCENT, -1)
+            cv2.rectangle(frame, (rx, ry), (rx + rw, ry + rh),
+                          COL_ACCENT if chosen else COL_DIM, 1, cv2.LINE_AA)
+            label = str(i + 1)
+            self.text.add(rx + rw // 2 - self.text.width(label, 12) // 2,
+                          ry + rh // 2 - 8, label, 12,
+                          COL_BG if chosen else COL_SOFT)
+
+        _, _, sw, sh = mouse.screen
+        self.text.right(x + panel_w - 16, y + 8, f"{sw}×{sh}", 12, COL_SOFT)
 
     def _draw_reactor(self, frame, w, h, volume, muted) -> None:
         """Indicador de volumen circular, a modo de reactor."""

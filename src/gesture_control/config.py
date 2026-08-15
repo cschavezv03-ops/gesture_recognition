@@ -162,9 +162,20 @@ class Config:
                 )
         return errors
 
+    #: Gestos que no son bindings porque los gobierna MouseController fotograma
+    #: a fotograma. Sin listarlos aquí no aparecerían en la chuleta, que es
+    #: justo donde alguien busca cómo se hace clic.
+    BUILTIN_ROWS = {
+        "mouse": [
+            (f"{poses.GESTURES['Pointing_Up'].name} · mover", "Mover el cursor"),
+            (poses.GESTURES["Closed_Fist"].name, "Clic izquierdo · arrastrar"),
+        ],
+    }
+
     def describe_bindings(self, group: str) -> list[tuple[str, str]]:
         """Pares ``(cómo se hace el gesto, qué hace)`` para la chuleta del HUD."""
-        rows = [
+        rows = list(self.BUILTIN_ROWS.get(group, []))
+        rows += [
             (poses.describe(b.gesture, b.trigger, b.direction, b.duration),
              b.label or b.action)
             for b in self.bindings.get(group, [])

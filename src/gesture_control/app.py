@@ -171,6 +171,7 @@ class App:
                 hand, inference_ms = recognizer.latest()
                 self._hand = hand
                 self._aspect = frame.shape[1] / max(frame.shape[0], 1)
+                self.mouse.set_frame_aspect(self._aspect)
 
                 # Conmutador y rueda son modales: mientras están desplegados la
                 # mano está dedicada a elegir, y dejar el motor activo
@@ -214,6 +215,7 @@ class App:
                     fps=self._fps, inference_ms=inference_ms,
                     delegate=recognizer.delegate, dry_run=self.dry_run, now=now,
                     wheel=self.wheel, switcher=self.switcher, pinch=self.pinch,
+                    mouse=self.mouse,
                     mouse_status=self.mouse.status if self.mode == "mouse" else "",
                 )
                 cv2.imshow(WINDOW, canvas)
